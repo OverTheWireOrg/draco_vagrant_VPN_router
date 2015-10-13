@@ -12,12 +12,14 @@ cat > /etc/network/if-pre-up.d/iptablesload << EOL
 iptables-restore < /etc/iptables.rules
 exit 0
 EOL
+chmod +x /etc/network/if-pre-up.d/iptablesload
 
 cat > /etc/network/if-post-down.d/iptablessave << EOL
 #!/bin/sh
 iptables-save -c > /etc/iptables.rules
 exit 0
 EOL
+chmod +x /etc/network/if-post-down.d/iptablessave
 
 # add iptables rules
 LAN_SUBNET=$(ip route | sed -n '2p' | awk '{print $1}')
