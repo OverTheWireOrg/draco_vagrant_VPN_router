@@ -2,6 +2,12 @@
 
 VPN_STATIC_IP=
 
+if [ "$VPN_STATIC_IP" = "" ];
+then
+    echo "ERROR: VPN_STATIC_IP must have a value (Check $0)"
+    exit 1
+fi
+
 # install openvpn client
 apt-get update
 apt-get -y install openvpn
