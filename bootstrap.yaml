@@ -1,0 +1,80 @@
+---
+- hosts: all
+  sudo: true
+
+  pre_tasks:
+    - include_vars: config.yaml
+
+    - name: install some packages needed for the rest of installation
+      apt: "name={{ item }} state=present"
+      with_items:
+        - apt-transport-https
+        - sudo
+
+  roles:
+    - shorewall
+    - role: network_interface
+      network_ether_interfaces:
+           - device: eth0:0
+             bootproto: static
+             address: "{{ warzone_ip }}"
+             netmask: 255.255.255.255
+      when: warzone_ip is defined
+    - warzone_client 
+
+
+  post_tasks:
+    - name: configure shorewall
+      lineinfile: "dest={{ item.filename }} line=\"{{ item.line }}\" state=present create=yes"
+      with_items:
+          # setup extra interfaces
+          - { filename: "/etc/shorewall/interfaces", line: "vpn tun0" }
+          - { filename: "/etc/shorewall/interfaces", line: "dmz {{ warzone_dmz_interface }}" }
+          # setup extra zones
+          - { filename: "/etc/shorewall/zones", line: "vpn ipv4" }
+          - { filename: "/etc/shorewall/zones", line: "dmz ipv4" }
+          # log packets coming from invalid IP ranges
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:LOCAL       ext:0.0.0.0/8 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:A           ext:10.0.0.0/8 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:LINK-LOCAL  ext:169.254.0.0/16 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:B           ext:172.16.0.0/12 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:C           ext:192.168.0.0/16 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:MULTICAST-D ext:224.0.0.0/4 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:E           ext:240.0.0.0/5 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:FUTURE      ext:240.0.0.0/4 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:RESERVED    ext:248.0.0.0/5 fw" }
+          - { filename: "/etc/shorewall/rules", line: "DROP:info:BROADCAST   ext:255.255.255.255/32 fw" }
+      notify:
+        - restart shorewall
+
+    - name: if there is a dmz, configure it in shorewall
+      lineinfile: "dest={{ item.filename }} line=\"{{ item.line }}\" state=present create=yes"
+      with_items:
+          - { filename: "/etc/shorewall/interfaces", line: "dmz {{ warzone_dmz_interface }}" }
+          - { filename: "/etc/shorewall/zones", line: "dmz ipv4" }
+      notify:
+        - restart shorewall
+      when: warzone_dmz_interface is defined
+
+    - name: if there is a dmz and some IP address on it, accept connections from those IPs
+      lineinfile: "dest=/etc/shorewall/rules line=\"ACCEPT:info           dmz:{{ item }} vpn\" state=present create=yes"
+      with_items: warzone_dmz_ips
+      notify:
+        - restart shorewall
+      when: warzone_dmz_interface is defined and warzone_dmz_ips is defined
+
+    - name: if there is a dmz and some IP address on it, accept connections to those IPs
+      lineinfile: "dest=/etc/shorewall/rules line=\"ACCEPT:info           vpn dmz:{{ item }}\" state=present create=yes"
+      with_items: warzone_dmz_ips
+      notify:
+        - restart shorewall
+      when: warzone_dmz_interface is defined and warzone_dmz_ips is defined
+
+    - name: if the router itself is assigned a warzone IP, allow traffic to and from it
+      lineinfile: "dest={{ item.filename }} line=\"{{ item.line }}\" state=present create=yes"
+      with_items:
+          - { filename: "/etc/shorewall/rules", line: "ACCEPT:info           fw:{{ warzone_ip }} vpn" }
+          - { filename: "/etc/shorewall/rules", line: "ACCEPT:info           vpn fw:{{ warzone_ip }}" }
+      notify:
+        - restart shorewall
+      when: warzone_ip is defined
