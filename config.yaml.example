@@ -1,0 +1,18 @@
+# User and key information
+warzone_username: myusername
+warzone_subkey: mysubkeyname
+warzone_keyfile: private/somekey.key
+
+# IP address that will be bound to this VM
+# warzone_ip: aa.bb.cc.dd
+
+# Route all traffic over the warzone?
+# warzone_redirect_default_gateway: false
+
+# Interface where the VMs are hosted (DMZ)
+# warzone_dmz_interface: eth1
+
+# Any IP addresses living on the DMZ
+# warzone_dmz_ips:
+#  - 1.2.3.4
+#  - 5.6.7.8

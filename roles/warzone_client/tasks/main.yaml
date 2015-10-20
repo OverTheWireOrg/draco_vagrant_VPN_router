@@ -1,0 +1,28 @@
+- name: install some apt packages
+  apt: "name={{ item }} state=present"
+  with_items:
+    - openvpn
+
+- name: download openvpn config
+  get_url: url=https://draco.overthewire.org/vpn/s/configfile/{{warzone_username}}/{{warzone_subkey}} dest=/etc/openvpn/{{warzone_username}}-{{warzone_subkey}}.conf mode=0444 validate_certs=no
+  register: newconfig
+
+- name: modify openvpn config to add default route through VPN
+  lineinfile: "dest=\"/etc/openvpn/{{warzone_username}}-{{warzone_subkey}}.conf\" line=\"{{ item }}\" state=present"
+  with_items:
+      - redirect-gateway def1
+  register: fixconfig
+  when: warzone_redirect_default_gateway is defined and warzone_redirect_default_gateway
+
+- name: copy openvpn key
+  copy: src={{warzone_keyfile}} dest=/etc/openvpn/{{warzone_username}}-{{warzone_subkey}}.key mode=0400
+  register: copykey
+
+- name: fix openvpn defaults for init script
+  lineinfile: dest=/etc/default/openvpn regexp="^AUTOSTART=" line="AUTOSTART=\"all\"" state=present create=yes
+  register: ovpninit
+
+- name: make sure openvpn is restarted if there are changes
+  service: name=openvpn state=restarted
+  when: newconfig.changed or fixconfig.changed or copykey.changed or ovpninit.changed
+
